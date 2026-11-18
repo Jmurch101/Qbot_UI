@@ -7,7 +7,6 @@ import sys
 from ctypes import (
     POINTER,
     Structure,
-    WinDLL,
     byref,
     c_ubyte,
     c_uint,
@@ -18,6 +17,11 @@ from ctypes import (
     cast,
     create_string_buffer,
 )
+
+if sys.platform == "win32":
+    from ctypes import WinDLL
+else:
+    WinDLL = None  # type: ignore[misc, assignment]
 
 
 class UnicastAddressFilter:
@@ -129,7 +133,7 @@ class InterfaceDirectory:
         return rows
 
     def _read_adapters(self) -> list[tuple[str, str, int]]:
-        if sys.platform != "win32":
+        if sys.platform != "win32" or WinDLL is None:
             return []
         iphlpapi = WinDLL("iphlpapi")
         get_adapters = iphlpapi.GetAdaptersAddresses

@@ -13,12 +13,21 @@ class OffscreenWindowTest(unittest.TestCase):
     def test_main_window_constructs(self) -> None:
         try:
             import PySide6
-            from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QTextEdit
+            from PySide6.QtWidgets import (
+                QApplication,
+                QComboBox,
+                QLabel,
+                QLineEdit,
+                QPushButton,
+            )
         except Exception as exc:
             self.skipTest(f"Qt offscreen platform is unavailable: {exc}")
         plugin = Path(PySide6.__file__).resolve().parent / "plugins" / "platforms" / "qoffscreen.dll"
         if not plugin.is_file():
-            self.skipTest(f"Qt offscreen platform plugin is missing: {plugin}")
+            alt = Path(PySide6.__file__).resolve().parent / "plugins" / "platforms"
+            names = {path.name for path in alt.glob("qoffscreen*")} if alt.is_dir() else set()
+            if not names:
+                self.skipTest(f"Qt offscreen platform plugin is missing: {plugin}")
         try:
             app = QApplication.instance() or QApplication([])
         except Exception as exc:
@@ -31,6 +40,7 @@ class OffscreenWindowTest(unittest.TestCase):
 
         from qbotui.feed_tile import FeedTile
         from qbotui.main_window import QbotMainWindow
+        from qbotui.tasks import TaskCatalog
 
         window = QbotMainWindow()
         try:
@@ -38,33 +48,44 @@ class OffscreenWindowTest(unittest.TestCase):
             app.processEvents()
             self.assertEqual(len(window.findChildren(FeedTile)), 4)
             self.assertFalse(window._address_list.operator_chose)
-            window._confirm_address()
+            window._connect_session()
             self.assertIsNone(window._viewer.confirmed_address)
             self.assertFalse(window._viewer.listeners_active)
-            self.assertIsNone(window._address_list.currentItem())
+            self.assertEqual(window._address_list.currentIndex(), 0)
             host = window.findChild(QLabel, "ipHostLabel")
             self.assertIsNotNone(host)
             assert host is not None
-            self.assertTrue(host.text().startswith("ipHost:"))
-            scope = window.findChild(QLabel, "stopScopeLabel")
-            self.assertIsNotNone(scope)
-            assert scope is not None
-            self.assertEqual(scope.text(), "This stops the PC viewer servers only.")
-            stop_buttons = [
-                button for button in window.findChildren(QPushButton) if button.text() == "Stop"
-            ]
-            self.assertEqual(len(stop_buttons), 1)
+            self.assertIn("ipHost", host.text())
+            device = window.findChild(QLabel, "deviceAddressLabel")
+            self.assertIsNotNone(device)
+            task_combo = window.findChild(QComboBox, "taskCombo")
+            self.assertIsNotNone(task_combo)
+            assert task_combo is not None
+            self.assertEqual(task_combo.count(), len(TaskCatalog.ALL))
+            ssh_host = window.findChild(QLineEdit, "sshHostEdit")
+            self.assertIsNotNone(ssh_host)
+            start = window.findChild(QPushButton, "startListenersButton")
+            self.assertIsNotNone(start)
+            assert start is not None
+            self.assertEqual(start.text(), "START QBOT")
+            emergency = window.findChild(QPushButton, "emergencyDisconnectButton")
+            self.assertIsNotNone(emergency)
+            assert emergency is not None
+            self.assertEqual(emergency.text(), "EMERGENCY DISCONNECT")
             for button in window.findChildren(QPushButton):
                 lowered = button.text().lower()
                 self.assertNotIn("e-stop", lowered)
-                self.assertNotIn("emergency", lowered)
-            checklist = window.findChild(QTextEdit, "safetyText")
-            self.assertIsNotNone(checklist)
-            assert checklist is not None
-            text = checklist.toPlainText()
-            self.assertIn("The floor is clear.", text)
-            self.assertIn("Closing this window does not disarm the robot.", text)
-            self.assertIn("The robot script stops its own loop at 90 seconds.", text)
+
+            line_index = next(
+                i
+                for i in range(task_combo.count())
+                if task_combo.itemData(i) == TaskCatalog.LINE_FOLLOW.key
+            )
+            task_combo.setCurrentIndex(line_index)
+            app.processEvents()
+            self.assertEqual(len(window.findChildren(FeedTile)), 2)
+            self.assertEqual(window._task.startup_script, "line_following.py")
+            self.assertEqual(window._task.observer.key, "line_following")
         finally:
             window.close()
             app.processEvents()

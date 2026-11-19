@@ -28,7 +28,7 @@ class StatusBoard(QWidget):
         self._console.setObjectName("consoleOutput")
         self._console.setReadOnly(True)
         self._console.setMaximumBlockCount(200)
-        self._console.setMinimumHeight(90)
+        self._console.setMinimumHeight(72)
 
         self._note = ""
         self._rows: dict[str, str] = {}

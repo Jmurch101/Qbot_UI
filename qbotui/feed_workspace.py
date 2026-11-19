@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -29,7 +30,8 @@ class _DetachedFeedWindow(QMainWindow):
         super().__init__()
         self._label = tile.label
         self.setWindowTitle(tile.label)
-        self.resize(520, 360)
+        self.resize(720, 480)
+        self.setMinimumSize(480, 320)
         host = QWidget()
         layout = QVBoxLayout(host)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -59,8 +61,11 @@ class FeedWorkspace(QWidget):
         self._columns = 2
         self._host_width = 1280
 
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
         card = QFrame()
         card.setObjectName("card")
+        card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         card_layout = QVBoxLayout(card)
         card_layout.setContentsMargins(14, 14, 14, 14)
         card_layout.setSpacing(10)

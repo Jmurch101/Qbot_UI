@@ -50,8 +50,10 @@ class FeedTile(QWidget):
 
         self._view = QLabel()
         self._view.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._view.setMinimumSize(160, 100)
+        self._view.setMinimumSize(240, 160)
         self._view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setMinimumHeight(220)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._view.setStyleSheet("background-color: #001633; border-radius: 8px;")
         self._placeholder = self._build_placeholder()
         self._view.setPixmap(self._placeholder)

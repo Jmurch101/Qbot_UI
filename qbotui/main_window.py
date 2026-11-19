@@ -1,10 +1,18 @@
-"""Control-center main window styled after the Phase A mock."""
+"""Control-center main window with Operations and Platform screens."""
 
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 from PySide6.QtGui import QCloseEvent, QResizeEvent
-from PySide6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QHBoxLayout,
+    QMainWindow,
+    QPushButton,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from qbotui.bind_policy import BindPolicy, BindRejected
 from qbotui.connection_panel import ConnectionPanel
@@ -12,8 +20,8 @@ from qbotui.contract import ProbeContract
 from qbotui.feed_workspace import FeedWorkspace
 from qbotui.frame_codec import FrameCodec
 from qbotui.interface_directory import InterfaceDirectory
+from qbotui.platform_screen import PlatformScreen
 from qbotui.ssh_launcher import SshLaunchError, SshTarget, launch_remote_script
-from qbotui.status_board import StatusBoard
 from qbotui.tasks import TaskCatalog, TaskProfile
 from qbotui.theme import CONTROL_CENTER_QSS
 from qbotui.viewer import Viewer
@@ -91,7 +99,11 @@ class QbotMainWindow(QMainWindow):
         self._workspace.apply_observer(self._task.observer)
 
         listen_labels = [stream.label for stream in self._task.streams()]
-        self._status = StatusBoard(listen_labels or list(self._task.stream_labels))
+        self._platform = PlatformScreen(
+            listen_labels or list(self._task.stream_labels),
+            self._workspace,
+        )
+        self._status = self._platform.status_board
 
         self._sinks: list[_FrameSink] = []
         for server in self._viewer.servers:
@@ -101,15 +113,46 @@ class QbotMainWindow(QMainWindow):
             self._sinks.append(sink)
             server.frame_ready.connect(sink.accept)
 
+        self._ops_nav = QPushButton("OPERATIONS")
+        self._ops_nav.setObjectName("screenNavButton")
+        self._ops_nav.setCheckable(True)
+        self._ops_nav.setChecked(True)
+        self._platform_nav = QPushButton("PLATFORM")
+        self._platform_nav.setObjectName("screenNavButton")
+        self._platform_nav.setCheckable(True)
+        self._nav_group = QButtonGroup(self)
+        self._nav_group.setExclusive(True)
+        self._nav_group.addButton(self._ops_nav, 0)
+        self._nav_group.addButton(self._platform_nav, 1)
+        self._nav_group.idClicked.connect(self._show_screen)
+
+        nav = QHBoxLayout()
+        nav.setSpacing(8)
+        nav.addWidget(self._ops_nav)
+        nav.addWidget(self._platform_nav)
+        nav.addStretch(1)
+        nav_host = QWidget()
+        nav_host.setLayout(nav)
+
+        operations = QWidget()
+        ops_layout = QVBoxLayout(operations)
+        ops_layout.setContentsMargins(0, 0, 0, 0)
+        ops_layout.setSpacing(12)
+        ops_layout.addWidget(self._connection.network_card)
+        ops_layout.addWidget(self._connection.mid_row, 1)
+        ops_layout.addWidget(self._connection.actions_row)
+
+        self._screens = QStackedWidget()
+        self._screens.setObjectName("screenStack")
+        self._screens.addWidget(operations)
+        self._screens.addWidget(self._platform)
+
         outer = QVBoxLayout()
         outer.setContentsMargins(16, 16, 16, 12)
         outer.setSpacing(12)
         outer.addWidget(self._connection.header)
-        outer.addWidget(self._connection.network_card)
-        outer.addWidget(self._workspace, 1)
-        outer.addWidget(self._connection.mid_row)
-        outer.addWidget(self._status)
-        outer.addWidget(self._connection.actions_row)
+        outer.addWidget(nav_host)
+        outer.addWidget(self._screens, 1)
         outer.addWidget(self._connection.footer)
 
         central = QWidget()
@@ -120,6 +163,7 @@ class QbotMainWindow(QMainWindow):
         self._reload_addresses()
         self._sync_controls()
         self._apply_responsive_layout(self.width())
+        self._show_screen(0)
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
@@ -131,6 +175,16 @@ class QbotMainWindow(QMainWindow):
         self._layout_width = width
         self._connection.apply_breakpoint(width)
         self._workspace.set_host_width(width)
+
+    def _show_screen(self, index: int) -> None:
+        self._screens.setCurrentIndex(index)
+        self._ops_nav.setChecked(index == 0)
+        self._platform_nav.setChecked(index == 1)
+
+    def set_platform_power(self, voltage: float | None, battery_percent: float | None) -> None:
+        """Update platform voltage (V) and battery charge (%)."""
+        self._platform.set_voltage(voltage)
+        self._platform.set_battery_percent(battery_percent)
 
     @Slot(str, bytes)
     def _show_payload(self, label: str, payload: bytes) -> None:
@@ -213,7 +267,7 @@ class QbotMainWindow(QMainWindow):
             return
         self._workspace.apply_observer(task.observer)
         listen_labels = [stream.label for stream in task.streams()]
-        self._status.set_labels(listen_labels or list(task.stream_labels))
+        self._platform.set_labels(listen_labels or list(task.stream_labels))
         self._status.show_note(f"{task.name} · {task.startup_script}")
         self._sync_controls()
 
@@ -297,3 +351,9 @@ class QbotMainWindow(QMainWindow):
                 self._device_name,
                 self._viewer.confirmed_address,
             )
+        self._platform.set_platform_identity(
+            device_name=self._device_name,
+            ip_host=self._viewer.confirmed_address,
+            network_connected=locked,
+            task_name=self._task.name,
+        )

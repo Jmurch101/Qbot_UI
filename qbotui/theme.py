@@ -84,6 +84,37 @@ QLabel#networkStatusLabel {{
     letter-spacing: 0.8px;
 }}
 
+QLabel#metricValue {{
+    font-size: 28px;
+    font-weight: 700;
+    color: {FSU_WHITE};
+}}
+
+QPushButton#screenNavButton {{
+    background-color: {FSU_BLUE_MID};
+    border: 1px solid #2E7CC4;
+    border-radius: 8px;
+    padding: 8px 16px;
+    color: {FSU_WHITE};
+}}
+
+QPushButton#screenNavButton:checked {{
+    background-color: {FSU_GOLD};
+    border: 1px solid {FSU_GOLD_HOVER};
+    color: {FSU_BLUE_DEEP};
+}}
+
+QProgressBar#batteryBar {{
+    background-color: #001F45;
+    border: 1px solid #2E7CC4;
+    border-radius: 7px;
+}}
+
+QProgressBar#batteryBar::chunk {{
+    background-color: {FSU_GOLD};
+    border-radius: 6px;
+}}
+
 QFrame#card {{
     background-color: {FSU_BLUE_CARD};
     border: 1px solid #1F6FB5;

@@ -72,6 +72,19 @@ class OffscreenWindowTest(unittest.TestCase):
             self.assertIsNotNone(emergency)
             assert emergency is not None
             self.assertEqual(emergency.text(), "EMERGENCY DISCONNECT")
+            platform_nav = [
+                button
+                for button in window.findChildren(QPushButton)
+                if button.text() == "PLATFORM"
+            ]
+            self.assertEqual(len(platform_nav), 1)
+            platform_nav[0].click()
+            app.processEvents()
+            self.assertEqual(window._screens.currentIndex(), 1)
+            self.assertIs(window._platform.workspace, window._workspace)
+            self.assertEqual(len(window.findChildren(FeedTile)), 4)
+            window.set_platform_power(11.9, 64)
+            self.assertEqual(window._platform._battery_bar.value(), 64)
             for button in window.findChildren(QPushButton):
                 lowered = button.text().lower()
                 self.assertNotIn("e-stop", lowered)

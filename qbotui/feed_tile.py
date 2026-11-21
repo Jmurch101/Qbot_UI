@@ -1,14 +1,14 @@
-"""One labeled image pane styled as a control-center viewer card."""
+"""One labeled image pane styled as a Platform WINDOWS cell."""
 
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QImage, QPainter, QPixmap, QResizeEvent
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPixmap, QResizeEvent
+from PySide6.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 
 class FeedTile(QWidget):
-    """Viewer card: title, LIVE badge, and the latest full frame."""
+    """Compact camera viewport with a camera-icon placeholder."""
 
     def __init__(self, label: str, index: int = 1, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -16,52 +16,23 @@ class FeedTile(QWidget):
         self._index = index
         self._last_image: QImage | None = None
         self.setObjectName("viewerCardHost")
-        self.setProperty("class", "viewerCard")
+        self.setMinimumSize(120, 90)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self._frame = QWidget()
         self._frame.setObjectName("viewerCard")
-        self._frame.setStyleSheet(
-            "QWidget#viewerCard {"
-            "background-color: #062E5A;"
-            "border: 1px solid #1F6FB5;"
-            "border-radius: 12px;"
-            "}"
-        )
-
-        title = f"VIEWER {index:02d}"
-        self._title = QLabel(title)
-        self._title.setObjectName("sectionTitle")
-        self._subtitle = QLabel(label)
-        self._subtitle.setObjectName("mutedLabel")
-        self._subtitle.setWordWrap(True)
-
-        self._live = QLabel("LIVE")
-        self._live.setObjectName("liveBadge")
-        self._live.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        header = QHBoxLayout()
-        header.setContentsMargins(0, 0, 0, 0)
-        title_col = QVBoxLayout()
-        title_col.setSpacing(2)
-        title_col.addWidget(self._title)
-        title_col.addWidget(self._subtitle)
-        header.addLayout(title_col, 1)
-        header.addWidget(self._live, 0, Qt.AlignmentFlag.AlignTop)
 
         self._view = QLabel()
         self._view.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._view.setMinimumSize(240, 160)
+        self._view.setMinimumSize(100, 70)
         self._view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.setMinimumHeight(220)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self._view.setStyleSheet("background-color: #001633; border-radius: 8px;")
+        self._view.setToolTip(label)
         self._placeholder = self._build_placeholder()
         self._view.setPixmap(self._placeholder)
 
         inner = QVBoxLayout(self._frame)
-        inner.setContentsMargins(12, 12, 12, 12)
-        inner.setSpacing(8)
-        inner.addLayout(header)
+        inner.setContentsMargins(6, 6, 6, 6)
+        inner.setSpacing(0)
         inner.addWidget(self._view, 1)
 
         outer = QVBoxLayout(self)
@@ -73,10 +44,8 @@ class FeedTile(QWidget):
         return self._label
 
     def set_detail(self, text: str) -> None:
-        if text:
-            self._subtitle.setText(f"{self._label} · {text}")
-        else:
-            self._subtitle.setText(self._label)
+        tip = f"{self._label} · {text}" if text else self._label
+        self._view.setToolTip(tip)
 
     def show_frame(self, image: QImage) -> None:
         self._last_image = image.copy()
@@ -89,7 +58,11 @@ class FeedTile(QWidget):
     def _paint_current(self) -> None:
         image = self._last_image
         if image is None:
-            self._view.setPixmap(self._placeholder)
+            size = self._view.size()
+            if size.width() >= 40 and size.height() >= 40:
+                self._view.setPixmap(self._build_placeholder(size.width(), size.height()))
+            else:
+                self._view.setPixmap(self._placeholder)
             return
         pixmap = QPixmap.fromImage(image)
         target = self._view.size()
@@ -103,15 +76,27 @@ class FeedTile(QWidget):
             )
         )
 
-    def _build_placeholder(self) -> QPixmap:
-        pixmap = QPixmap(320, 180)
-        pixmap.fill(QColor(0, 22, 51))
+    def _build_placeholder(self, width: int = 240, height: int = 160) -> QPixmap:
+        width = max(width, 80)
+        height = max(height, 60)
+        pixmap = QPixmap(width, height)
+        pixmap.fill(QColor(8, 28, 56))
         painter = QPainter(pixmap)
-        painter.setPen(QColor(176, 183, 188))
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(QColor(90, 168, 255))
+        pen.setWidth(2)
+        painter.setPen(pen)
+        cx, cy = width // 2, height // 2
+        body_w, body_h = min(width, height) // 4, min(width, height) // 5
+        painter.drawRoundedRect(cx - body_w, cy - body_h // 2, body_w * 2, body_h, 6, 6)
+        lens = max(body_h // 2, 8)
+        painter.drawEllipse(cx - lens // 2, cy - lens // 2, lens, lens)
+        painter.drawEllipse(cx + body_w - 4, cy - body_h // 2 - 6, 10, 8)
+        painter.setPen(QColor(140, 180, 220))
         painter.drawText(
-            pixmap.rect(),
-            Qt.AlignmentFlag.AlignCenter,
-            "Camera feed",
+            pixmap.rect().adjusted(0, body_h + 12, 0, 0),
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
+            self._label,
         )
         painter.end()
         return pixmap

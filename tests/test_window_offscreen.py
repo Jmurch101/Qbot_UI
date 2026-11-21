@@ -22,12 +22,10 @@ class OffscreenWindowTest(unittest.TestCase):
             )
         except Exception as exc:
             self.skipTest(f"Qt offscreen platform is unavailable: {exc}")
-        plugin = Path(PySide6.__file__).resolve().parent / "plugins" / "platforms" / "qoffscreen.dll"
-        if not plugin.is_file():
-            alt = Path(PySide6.__file__).resolve().parent / "plugins" / "platforms"
-            names = {path.name for path in alt.glob("qoffscreen*")} if alt.is_dir() else set()
-            if not names:
-                self.skipTest(f"Qt offscreen platform plugin is missing: {plugin}")
+        platforms = Path(PySide6.__file__).resolve().parent / "plugins" / "platforms"
+        names = {path.name for path in platforms.glob("qoffscreen*")} if platforms.is_dir() else set()
+        if not names:
+            self.skipTest(f"Qt offscreen platform plugin is missing under {platforms}")
         try:
             app = QApplication.instance() or QApplication([])
         except Exception as exc:
@@ -40,6 +38,7 @@ class OffscreenWindowTest(unittest.TestCase):
 
         from qbotui.feed_tile import FeedTile
         from qbotui.main_window import QbotMainWindow
+        from qbotui.platform_screen import PlatformScreen
         from qbotui.tasks import TaskCatalog
 
         window = QbotMainWindow()
@@ -67,24 +66,34 @@ class OffscreenWindowTest(unittest.TestCase):
             start = window.findChild(QPushButton, "startListenersButton")
             self.assertIsNotNone(start)
             assert start is not None
-            self.assertEqual(start.text(), "START QBOT")
+            self.assertIn("START", start.text())
+            open_platform = window.findChild(QPushButton, "openPlatformButton")
+            self.assertIsNotNone(open_platform)
+            assert open_platform is not None
+            self.assertIn("OPEN QBOT PLATFORM", open_platform.text())
             emergency = window.findChild(QPushButton, "emergencyDisconnectButton")
             self.assertIsNotNone(emergency)
-            assert emergency is not None
-            self.assertEqual(emergency.text(), "EMERGENCY DISCONNECT")
-            platform_nav = [
-                button
-                for button in window.findChildren(QPushButton)
-                if button.text() == "PLATFORM"
-            ]
-            self.assertEqual(len(platform_nav), 1)
-            platform_nav[0].click()
+            open_platform.click()
             app.processEvents()
             self.assertEqual(window._screens.currentIndex(), 1)
             self.assertIs(window._platform.workspace, window._workspace)
+            self.assertEqual(
+                window._platform.grid_layout.rowStretch(0),
+                PlatformScreen.TOP_ROW_STRETCH,
+            )
+            self.assertEqual(
+                window._platform.grid_layout.rowStretch(1),
+                PlatformScreen.BOTTOM_ROW_STRETCH,
+            )
             self.assertEqual(len(window.findChildren(FeedTile)), 4)
             window.set_platform_power(11.9, 64)
             self.assertEqual(window._platform._battery_bar.value(), 64)
+            back = window.findChild(QPushButton, "backInitButton")
+            self.assertIsNotNone(back)
+            assert back is not None
+            back.click()
+            app.processEvents()
+            self.assertEqual(window._screens.currentIndex(), 0)
             for button in window.findChildren(QPushButton):
                 lowered = button.text().lower()
                 self.assertNotIn("e-stop", lowered)

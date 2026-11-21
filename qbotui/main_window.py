@@ -1,18 +1,10 @@
-"""Control-center main window with Operations and Platform screens."""
+"""Control-center main window with Init and Platform screens."""
 
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 from PySide6.QtGui import QCloseEvent, QResizeEvent
-from PySide6.QtWidgets import (
-    QButtonGroup,
-    QHBoxLayout,
-    QMainWindow,
-    QPushButton,
-    QStackedWidget,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtWidgets import QMainWindow, QStackedWidget, QVBoxLayout, QWidget
 
 from qbotui.bind_policy import BindPolicy, BindRejected
 from qbotui.connection_panel import ConnectionPanel
@@ -72,7 +64,7 @@ class QbotMainWindow(QMainWindow):
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("QBOT PLATFORM · Phase A Control Center")
+        self.setWindowTitle("QBot Platform - Robotics Control & Management System")
         self.resize(1280, 900)
         self.setMinimumSize(520, 640)
         self.setStyleSheet(CONTROL_CENTER_QSS)
@@ -92,6 +84,7 @@ class QbotMainWindow(QMainWindow):
         self._connection.execute_requested.connect(self._execute_task)
         self._connection.start_requested.connect(self._connect_session)
         self._connection.disconnect_requested.connect(self._disconnect_session)
+        self._connection.open_platform_requested.connect(lambda: self._show_screen(1))
         self._connection.task_changed.connect(self._on_task_changed)
         self._address_list = self._connection.address_chooser
 
@@ -103,57 +96,22 @@ class QbotMainWindow(QMainWindow):
             listen_labels or list(self._task.stream_labels),
             self._workspace,
         )
+        self._platform.back_requested.connect(lambda: self._show_screen(0))
         self._status = self._platform.status_board
 
         self._sinks: list[_FrameSink] = []
-        for server in self._viewer.servers:
-            server.state_changed.connect(self._status.set_state)
-            server.activity.connect(self._status.set_activity)
-            sink = _FrameSink(server.label, self)
-            self._sinks.append(sink)
-            server.frame_ready.connect(sink.accept)
-
-        self._ops_nav = QPushButton("OPERATIONS")
-        self._ops_nav.setObjectName("screenNavButton")
-        self._ops_nav.setCheckable(True)
-        self._ops_nav.setChecked(True)
-        self._platform_nav = QPushButton("PLATFORM")
-        self._platform_nav.setObjectName("screenNavButton")
-        self._platform_nav.setCheckable(True)
-        self._nav_group = QButtonGroup(self)
-        self._nav_group.setExclusive(True)
-        self._nav_group.addButton(self._ops_nav, 0)
-        self._nav_group.addButton(self._platform_nav, 1)
-        self._nav_group.idClicked.connect(self._show_screen)
-
-        nav = QHBoxLayout()
-        nav.setSpacing(8)
-        nav.addWidget(self._ops_nav)
-        nav.addWidget(self._platform_nav)
-        nav.addStretch(1)
-        nav_host = QWidget()
-        nav_host.setLayout(nav)
-
-        operations = QWidget()
-        ops_layout = QVBoxLayout(operations)
-        ops_layout.setContentsMargins(0, 0, 0, 0)
-        ops_layout.setSpacing(12)
-        ops_layout.addWidget(self._connection.network_card)
-        ops_layout.addWidget(self._connection.mid_row, 1)
-        ops_layout.addWidget(self._connection.actions_row)
+        self._viewer.servers_changed.connect(self._wire_viewer_servers)
+        self._wire_viewer_servers()
 
         self._screens = QStackedWidget()
         self._screens.setObjectName("screenStack")
-        self._screens.addWidget(operations)
+        self._screens.addWidget(self._connection)
         self._screens.addWidget(self._platform)
 
         outer = QVBoxLayout()
-        outer.setContentsMargins(16, 16, 16, 12)
-        outer.setSpacing(12)
-        outer.addWidget(self._connection.header)
-        outer.addWidget(nav_host)
+        outer.setContentsMargins(16, 16, 16, 16)
+        outer.setSpacing(0)
         outer.addWidget(self._screens, 1)
-        outer.addWidget(self._connection.footer)
 
         central = QWidget()
         central.setLayout(outer)
@@ -174,12 +132,20 @@ class QbotMainWindow(QMainWindow):
             return
         self._layout_width = width
         self._connection.apply_breakpoint(width)
-        self._workspace.set_host_width(width)
+        # Use half-window width for mosaic column decisions (WINDOWS cell ~50%).
+        self._workspace.set_host_width(max(width // 2, 1))
+
+    def _wire_viewer_servers(self) -> None:
+        self._sinks = []
+        for server in self._viewer.servers:
+            server.state_changed.connect(self._status.set_state)
+            server.activity.connect(self._status.set_activity)
+            sink = _FrameSink(server.label, self)
+            self._sinks.append(sink)
+            server.frame_ready.connect(sink.accept)
 
     def _show_screen(self, index: int) -> None:
         self._screens.setCurrentIndex(index)
-        self._ops_nav.setChecked(index == 0)
-        self._platform_nav.setChecked(index == 1)
 
     def set_platform_power(self, voltage: float | None, battery_percent: float | None) -> None:
         """Update platform voltage (V) and battery charge (%)."""
@@ -232,7 +198,7 @@ class QbotMainWindow(QMainWindow):
             return
         chosen = self._address_list.chosen_row()
         if chosen is None:
-            self._status.show_note("Select one PC IPv4, then press CONFIRM.")
+            self._status.show_note("Select one PC IPv4, then verify SSH connection.")
             return
         device_name, address = chosen
         try:
@@ -241,8 +207,12 @@ class QbotMainWindow(QMainWindow):
             self._status.show_note(str(exc))
             return
         self._device_name = device_name
+        ssh = self._connection.ssh_target()
+        if not ssh.host:
+            # Prefer using the confirmed PC address as a starting SSH host hint.
+            pass
         self._connection.set_confirmed(device_name, confirmed)
-        self._status.show_note(f"Confirmed ipHost {confirmed}")
+        self._status.show_note(f"Verified ipHost {confirmed}")
         self._sync_controls()
 
     def _execute_task(self) -> None:
@@ -303,6 +273,7 @@ class QbotMainWindow(QMainWindow):
         )
         self._sync_controls()
         self._connection.set_session_enabled(False)
+        self._show_screen(1)
 
         worker = _SshStartWorker(ssh_target, task, parent=self)
         worker.succeeded.connect(self._on_ssh_succeeded)

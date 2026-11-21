@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QObject
+from PySide6.QtCore import QObject, Signal
 
 from qbotui.bind_policy import BindPolicy, BindRejected
 from qbotui.contract import ProbeContract, ProbeStream
@@ -12,21 +12,22 @@ from qbotui.probe_server import ProbeServer
 class Viewer(QObject):
     """Start and stop PC listeners for the selected streams. No camera device."""
 
+    servers_changed = Signal()
+
     def __init__(self, policy: BindPolicy, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._policy = policy
         self._active = False
-        self._active_labels: frozenset[str] = frozenset(
-            stream.label for stream in ProbeContract.STREAMS
-        )
-        self._servers = {
-            stream.label: ProbeServer(stream, policy, parent=self)
-            for stream in ProbeContract.STREAMS
-        }
+        self._servers: dict[str, ProbeServer] = {}
+        self._stream_order: tuple[str, ...] = ()
+        self._active_labels: frozenset[str] = frozenset()
+        self.set_streams(ProbeContract.STREAMS)
 
     @property
     def servers(self) -> tuple[ProbeServer, ...]:
-        return tuple(self._servers[stream.label] for stream in ProbeContract.STREAMS)
+        return tuple(
+            self._servers[label] for label in self._stream_order if label in self._servers
+        )
 
     def server_for(self, label: str) -> ProbeServer:
         return self._servers[label]
@@ -48,7 +49,21 @@ class Viewer(QObject):
             raise BindRejected("Changing observer streams is allowed only while servers are stopped")
         if not streams:
             raise BindRejected("Observer must expose at least one stream")
-        self._active_labels = frozenset(stream.label for stream in streams)
+        labels = [stream.label for stream in streams]
+        if len(labels) != len(set(labels)):
+            raise BindRejected("Observer stream labels must be unique")
+
+        for server in self._servers.values():
+            server.request_stop()
+            server.join(1.0)
+            server.deleteLater()
+        self._servers = {
+            stream.label: ProbeServer(stream, self._policy, parent=self)
+            for stream in streams
+        }
+        self._stream_order = tuple(labels)
+        self._active_labels = frozenset(labels)
+        self.servers_changed.emit()
 
     def confirm_address(self, host: str) -> str:
         if self._active:

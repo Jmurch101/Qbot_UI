@@ -1,4 +1,4 @@
-"""Observer layouts matched to Quanser SP0 Play and SP1 Task Automation labs."""
+"""Observer layouts matched exactly to Quanser/*/hardware/python/observer.py."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from qbotui.contract import ProbeContract, ProbeStream
 
 @dataclass(frozen=True)
 class ObserverPanel:
-    """One observer window. Optional stream binds a known PC listener port."""
+    """One observer window. Optional stream binds a PC listener port."""
 
     label: str
     stream: ProbeStream | None = None
@@ -23,6 +23,7 @@ class ObserverProfile:
     name: str
     panels: tuple[ObserverPanel, ...]
     summary: str
+    observer_script: str
 
     @property
     def stream_labels(self) -> tuple[str, ...]:
@@ -35,11 +36,13 @@ class ObserverProfile:
         for panel in self.panels:
             if panel.stream is not None and panel.stream.label == stream_label:
                 return panel
+            if panel.label == stream_label:
+                return panel
         return None
 
 
 class ObserverCatalog:
-    """Layouts from Quanser_Academic_Resources play_qbot and sp1_task_automation."""
+    """Layouts from Quanser SP0 play_qbot and SP1 task-automation observers."""
 
     FULL = ObserverProfile(
         key="full",
@@ -50,53 +53,73 @@ class ObserverCatalog:
             ObserverPanel("RealSense Depth Image", ProbeContract.DEPTH),
             ObserverPanel("Leishen M10P Lidar", ProbeContract.LIDAR),
         ),
-        summary="Startup quick-start: four probe windows.",
+        summary="quick_start_qbot_platform.py probes (no separate observer.py).",
+        observer_script="(embedded in Qbot UI / quick_start probes)",
     )
     PLAY = ObserverProfile(
         key="play",
         name="Play Observer",
         panels=(
-            ObserverPanel("RealSense RGB Image", ProbeContract.RGB),
+            ObserverPanel("RealSense RGB Image", ProbeContract.PLAY_RGB),
         ),
-        summary="SP0 play_qbot observer: RealSense RGB only.",
+        summary="sp0_play/play_qbot observer: RealSense RGB on 18801.",
+        observer_script=(
+            "6_teaching/3_Robotics/sp0_play/play_qbot/hardware/python/observer.py"
+        ),
     )
     FORWARD_KIN = ObserverProfile(
         key="forward_kin",
         name="Forward Kinematics Observer",
         panels=(
-            ObserverPanel("Motor Speed Plot"),
-            ObserverPanel("Body Speed Plot"),
-            ObserverPanel("Downward Facing Raw", ProbeContract.DOWNWARD),
+            ObserverPanel("Motor Speed Plot", ProbeContract.MOTOR_SCOPE),
+            ObserverPanel("Body Speed Plot", ProbeContract.BODY_SCOPE),
+            ObserverPanel("Downward Facing Raw", ProbeContract.KIN_RAW),
         ),
-        summary="SP1 lab 1 observer: two scopes and downward camera.",
+        summary="l1_forward_kinematics observer: two scopes + downward raw.",
+        observer_script=(
+            "6_teaching/3_Robotics/sp1_task_automation/"
+            "l1_forward_kinematics/hardware/python/observer.py"
+        ),
     )
     INVERSE_KIN = ObserverProfile(
         key="inverse_kin",
         name="Inverse Kinematics Observer",
         panels=(
-            ObserverPanel("Motor Speed Plot"),
-            ObserverPanel("Body Speed Plot"),
-            ObserverPanel("Downward Facing Raw", ProbeContract.DOWNWARD),
+            ObserverPanel("Motor Speed Plot", ProbeContract.MOTOR_SCOPE),
+            ObserverPanel("Body Speed Plot", ProbeContract.BODY_SCOPE),
+            ObserverPanel("Downward Facing Raw", ProbeContract.KIN_RAW),
         ),
-        summary="SP1 lab 2 observer: two scopes and downward camera.",
+        summary="l2_inverse_kinematics observer: two scopes + downward raw.",
+        observer_script=(
+            "6_teaching/3_Robotics/sp1_task_automation/"
+            "l2_inverse_kinematics/hardware/python/observer.py"
+        ),
     )
     LINE_FOLLOWING = ObserverProfile(
         key="line_following",
         name="Line Following Observer",
         panels=(
-            ObserverPanel("Downward Facing Raw", ProbeContract.DOWNWARD),
-            ObserverPanel("Downward Facing Binary"),
+            ObserverPanel("Downward Facing Raw", ProbeContract.LINE_RAW),
+            ObserverPanel("Downward Facing Binary", ProbeContract.LINE_BINARY),
         ),
-        summary="SP1 lab 3 observer: raw and binary downward images.",
+        summary="l3_line_following observer: raw + binary downward images.",
+        observer_script=(
+            "6_teaching/3_Robotics/sp1_task_automation/"
+            "l3_line_following/hardware/python/observer.py"
+        ),
     )
     OBJECT_DETECTION = ObserverProfile(
         key="object_detection",
         name="Object Detection Observer",
         panels=(
-            ObserverPanel("Leishen M10P Lidar", ProbeContract.LIDAR),
-            ObserverPanel("Plotting"),
+            ObserverPanel("Leishen M10P Lidar", ProbeContract.OD_LIDAR),
+            ObserverPanel("Plotting", ProbeContract.OD_PLOT),
         ),
-        summary="SP1 lab 4 observer: raw lidar and processed lidar plot.",
+        summary="l4_object_detection observer: raw lidar + plotting lidar.",
+        observer_script=(
+            "6_teaching/3_Robotics/sp1_task_automation/"
+            "l4_object_detection/hardware/python/observer.py"
+        ),
     )
 
     ALL: tuple[ObserverProfile, ...] = (

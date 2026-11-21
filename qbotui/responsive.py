@@ -8,15 +8,19 @@ MEDIUM = 1100
 
 
 def viewer_columns(width: int, feed_count: int) -> int:
-    """How many mosaic columns to use for the current width and feed count."""
+    """How many mosaic columns to use for an equal square-style grid.
+
+    Four camera feeds stay in a 2x2 square. Two feeds sit side-by-side.
+    Only collapse to a single column when the WINDOWS cell is extremely narrow.
+    """
     if feed_count <= 1:
         return 1
-    if width < NARROW:
+    if width < 360:
         return 1
-    if width < MEDIUM and feed_count >= 4:
+    if feed_count <= 4:
         return 2
-    if feed_count == 3 and width < 980:
-        return 1
+    if width >= MEDIUM and feed_count >= 6:
+        return 3
     return 2
 
 

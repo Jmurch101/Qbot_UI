@@ -1,4 +1,4 @@
-"""Lab tasks aligned to Quanser SP0 Play and SP1 Task Automation hardware labs."""
+"""Lab tasks bound to exact Quanser startup scripts and observer layouts."""
 
 from __future__ import annotations
 
@@ -6,6 +6,9 @@ from dataclasses import dataclass
 
 from qbotui.contract import ProbeStream
 from qbotui.observers import ObserverCatalog, ObserverProfile
+
+# Root of the Quanser tree on each QBot (Desktop/Quanser).
+QUANSER_REMOTE_ROOT = "/home/nvidia/Desktop/Quanser"
 
 
 @dataclass(frozen=True)
@@ -17,7 +20,13 @@ class TaskProfile:
     observer: ObserverProfile
     startup_script: str
     resource_path: str
-    remote_dir: str = "/home/nvidia/Desktop"
+    remote_root: str = QUANSER_REMOTE_ROOT
+
+    @property
+    def remote_dir(self) -> str:
+        if not self.resource_path or self.resource_path == ".":
+            return self.remote_root.rstrip("/")
+        return f"{self.remote_root.rstrip('/')}/{self.resource_path.strip('/')}"
 
     @property
     def stream_labels(self) -> tuple[str, ...]:
@@ -42,14 +51,14 @@ class TaskProfile:
 
 
 class TaskCatalog:
-    """Tasks from Quanser_Academic_Resources (dev-windows) SP0 Play + SP1 labs."""
+    """Tasks from the local Quanser/ tree that will ship on the QBots."""
 
     STARTUP = TaskProfile(
         key="startup",
         name="Startup",
         observer=ObserverCatalog.FULL,
         startup_script="quick_start_qbot_platform.py",
-        resource_path="2_quick_start_guides/qbot_platform/hardware/python",
+        resource_path=".",
     )
     PLAY = TaskProfile(
         key="play",

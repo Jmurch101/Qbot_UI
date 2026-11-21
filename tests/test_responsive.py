@@ -11,10 +11,12 @@ class ResponsiveLayoutTest(unittest.TestCase):
     def test_viewer_columns_by_width_and_count(self) -> None:
         self.assertEqual(viewer_columns(1400, 4), 2)
         self.assertEqual(viewer_columns(1400, 1), 1)
-        self.assertEqual(viewer_columns(700, 4), 1)
-        self.assertEqual(viewer_columns(700, 2), 1)
+        self.assertEqual(viewer_columns(700, 4), 2)
+        self.assertEqual(viewer_columns(700, 2), 2)
         self.assertEqual(viewer_columns(1000, 4), 2)
-        self.assertEqual(viewer_columns(900, 3), 1)
+        self.assertEqual(viewer_columns(900, 3), 2)
+        self.assertEqual(viewer_columns(300, 4), 1)
+        self.assertEqual(viewer_columns(1200, 6), 3)
 
     def test_controls_stack_when_narrow(self) -> None:
         self.assertFalse(stack_controls(1280))

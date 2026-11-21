@@ -1,4 +1,4 @@
-"""Platform monitoring screen shows voltage and battery metrics."""
+"""Platform monitoring screen uses proportional mock grid and power metrics."""
 
 from __future__ import annotations
 
@@ -24,6 +24,12 @@ class PlatformScreenTest(unittest.TestCase):
         workspace = FeedWorkspace()
         screen = PlatformScreen(["Downward Facing Image"], workspace)
         self.assertIs(screen.workspace, workspace)
+        self.assertEqual(screen.grid_layout.rowStretch(0), PlatformScreen.TOP_ROW_STRETCH)
+        self.assertEqual(
+            screen.grid_layout.rowStretch(1), PlatformScreen.BOTTOM_ROW_STRETCH
+        )
+        self.assertEqual(screen.grid_layout.columnStretch(0), 1)
+        self.assertEqual(screen.grid_layout.columnStretch(1), 1)
         screen.set_voltage(12.4)
         screen.set_battery_percent(78)
         screen.set_platform_identity(
@@ -32,12 +38,20 @@ class PlatformScreenTest(unittest.TestCase):
             network_connected=True,
             task_name="Startup",
         )
-        voltage = screen.findChild(QLabel, "metricValue")
-        self.assertIsNotNone(voltage)
-        values = [label.text() for label in screen.findChildren(QLabel) if label.objectName() == "metricValue"]
+        values = [
+            label.text()
+            for label in screen.findChildren(QLabel)
+            if label.objectName() in {"metricValue", "metricValueCompact"}
+        ]
         self.assertIn("12.40 V", values)
         self.assertIn("78 %", values)
         bar = screen.findChild(QProgressBar, "batteryBar")
         self.assertIsNotNone(bar)
         assert bar is not None
         self.assertEqual(bar.value(), 78)
+        summary = [
+            label.text()
+            for label in screen.findChildren(QLabel)
+            if "QBot-01" in label.text() and "10.0.0.8" in label.text()
+        ]
+        self.assertTrue(summary)

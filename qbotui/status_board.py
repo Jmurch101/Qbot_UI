@@ -1,34 +1,49 @@
-"""Console-style status output for the control center."""
+"""Bash-style console for the Platform BASH cell."""
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPlainTextEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPlainTextEdit,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class StatusBoard(QWidget):
-    """Bash-style console that shows notes and listener state."""
+    """Console that shows notes and listener state as bash output."""
 
     def __init__(self, labels: list[str], parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        card = QFrame()
-        card.setObjectName("consoleCard")
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(14, 12, 14, 12)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        self._card = QFrame()
+        self._card.setObjectName("consoleCard")
+        layout = QVBoxLayout(self._card)
+        layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(6)
 
-        header = QHBoxLayout()
-        title = QLabel("BASH / COMMAND CONSOLE")
-        title.setObjectName("sectionTitle")
-        ready = QLabel("READY")
-        ready.setObjectName("liveBadge")
-        header.addWidget(title, 1)
-        header.addWidget(ready)
+        self._header = QWidget()
+        header = QHBoxLayout(self._header)
+        header.setContentsMargins(0, 0, 0, 0)
+        self._title = QLabel("BASH")
+        self._title.setObjectName("sectionTitle")
+        self._ready = QLabel("READY")
+        self._ready.setObjectName("liveBadge")
+        header.addWidget(self._title, 1)
+        header.addWidget(self._ready)
 
         self._console = QPlainTextEdit()
         self._console.setObjectName("consoleOutput")
         self._console.setReadOnly(True)
         self._console.setMaximumBlockCount(200)
-        self._console.setMinimumHeight(72)
+        self._console.setMinimumHeight(48)
+        self._console.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
 
         self._note = ""
         self._rows: dict[str, str] = {}
@@ -36,13 +51,33 @@ class StatusBoard(QWidget):
         self._activity: dict[str, str] = {}
         self._labels: list[str] = []
 
-        layout.addLayout(header)
-        layout.addWidget(self._console)
+        layout.addWidget(self._header)
+        layout.addWidget(self._console, 1)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        outer.addWidget(card)
+        outer.addWidget(self._card)
         self.set_labels(labels)
+
+    def set_title(self, title: str) -> None:
+        self._title.setText(title)
+
+    def set_chrome_compact(self, compact: bool) -> None:
+        """When embedded under a section heading, hide the inner card chrome."""
+        if compact:
+            self._header.setVisible(False)
+            self._card.setObjectName("consoleCardFlat")
+            layout = self._card.layout()
+            if layout is not None:
+                layout.setContentsMargins(0, 0, 0, 0)
+        else:
+            self._header.setVisible(True)
+            self._card.setObjectName("consoleCard")
+        self.style().unpolish(self._card)
+        self.style().polish(self._card)
+
+    def latest_note(self) -> str:
+        return self._note.strip()
 
     def set_labels(self, labels: list[str]) -> None:
         self._labels = list(labels)

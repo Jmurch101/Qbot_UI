@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
-from qbotui.tasks import TaskCatalog
+from qbotui.tasks import QUANSER_REMOTE_ROOT, TaskCatalog
 
 
 class TaskCatalogTest(unittest.TestCase):
@@ -39,9 +40,26 @@ class TaskCatalogTest(unittest.TestCase):
         scripts = {task.startup_script for task in TaskCatalog.ALL}
         self.assertEqual(len(scripts), len(TaskCatalog.ALL))
 
-    def test_remote_command_targets_desktop_script(self) -> None:
+    def test_remote_command_targets_quanser_lab_folder(self) -> None:
         task = TaskCatalog.PLAY
         command = task.remote_command
-        self.assertIn("/home/nvidia/Desktop", command)
+        self.assertIn(QUANSER_REMOTE_ROOT, command)
+        self.assertIn("play_qbot/hardware/python", command)
         self.assertIn("play.py", command)
         self.assertIn("python3", command)
+        startup = TaskCatalog.STARTUP
+        self.assertEqual(startup.remote_dir, QUANSER_REMOTE_ROOT)
+        self.assertIn("quick_start_qbot_platform.py", startup.remote_command)
+
+    def test_local_quanser_scripts_exist(self) -> None:
+        root = Path(__file__).resolve().parents[1] / "Quanser"
+        self.assertTrue((root / "quick_start_qbot_platform.py").is_file())
+        for task in TaskCatalog.ALL:
+            if task.key == "startup":
+                script = root / task.startup_script
+            else:
+                script = root / task.resource_path / task.startup_script
+            self.assertTrue(script.is_file(), msg=f"missing {script}")
+            if task.observer.observer_script.startswith("6_teaching"):
+                observer = root / task.observer.observer_script
+                self.assertTrue(observer.is_file(), msg=f"missing {observer}")

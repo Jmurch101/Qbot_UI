@@ -12,7 +12,7 @@ class BindPolicyTest(unittest.TestCase):
     def test_allowed_port_set_is_exact(self) -> None:
         self.assertEqual(
             BindPolicy.ALLOWED_PORTS,
-            frozenset({18801, 18802, 18803, 18601}),
+            frozenset({18801, 18802, 18803, 18601, 18602, 18701, 18702}),
         )
         self.assertEqual(ProbeContract.ports(), BindPolicy.ALLOWED_PORTS)
 
@@ -37,5 +37,5 @@ class BindPolicyTest(unittest.TestCase):
             policy.confirm("10.1.2.4")
         with self.assertRaises(BindRejected):
             policy.authorize_bind("10.9.9.9", 18801)
-        for port in (18801, 18802, 18803, 18601):
+        for port in (18801, 18802, 18803, 18601, 18602, 18701, 18702):
             self.assertEqual(policy.authorize_bind("10.1.2.3", port), ("10.1.2.3", port))

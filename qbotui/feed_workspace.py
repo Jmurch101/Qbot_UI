@@ -63,33 +63,57 @@ class FeedWorkspace(QWidget):
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-        card = QFrame()
-        card.setObjectName("card")
-        card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(14, 14, 14, 14)
-        card_layout.setSpacing(10)
+        self._card = QFrame()
+        self._card.setObjectName("card")
+        self._card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        card_layout = QVBoxLayout(self._card)
+        card_layout.setContentsMargins(10, 10, 10, 10)
+        card_layout.setSpacing(8)
 
-        title = QLabel("CAMERA VIEWERS")
-        title.setObjectName("sectionTitle")
-        self._toggle = QPushButton("Separate windows")
+        self._title = QLabel("WINDOWS")
+        self._title.setObjectName("sectionTitle")
+        self._toggle = QPushButton("Separate")
         self._toggle.setObjectName("windowModeButton")
         self._toggle.clicked.connect(self.toggle_mode)
-        header = QHBoxLayout()
-        header.addWidget(title, 1)
+        self._header = QWidget()
+        header = QHBoxLayout(self._header)
+        header.setContentsMargins(0, 0, 0, 0)
+        header.addWidget(self._title, 1)
         header.addWidget(self._toggle)
 
         self._grid_host = QWidget()
+        self._grid_host.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
         self._grid = QGridLayout(self._grid_host)
         self._grid.setContentsMargins(0, 0, 0, 0)
-        self._grid.setSpacing(10)
+        self._grid.setSpacing(8)
 
-        card_layout.addLayout(header)
+        card_layout.addWidget(self._header)
         card_layout.addWidget(self._grid_host, 1)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(card)
+        layout.addWidget(self._card)
+
+    def set_section_title(self, title: str) -> None:
+        self._title.setText(title)
+
+    def set_chrome_visible(self, visible: bool) -> None:
+        """Hide outer card/title when parent section already provides WINDOWS chrome."""
+        self._header.setVisible(visible)
+        if not visible:
+            self._card.setObjectName("cardFlat")
+            card_layout = self._card.layout()
+            if card_layout is not None:
+                card_layout.setContentsMargins(0, 0, 0, 0)
+        else:
+            self._card.setObjectName("card")
+            card_layout = self._card.layout()
+            if card_layout is not None:
+                card_layout.setContentsMargins(10, 10, 10, 10)
+        self.style().unpolish(self._card)
+        self.style().polish(self._card)
 
     @property
     def mode(self) -> str:
@@ -172,17 +196,22 @@ class FeedWorkspace(QWidget):
             self._grid.setRowStretch(row, 0)
 
         if self._mode == self.MODE_MOSAIC:
-            self._toggle.setText("Separate windows")
+            self._toggle.setText("Separate")
             columns = self._columns
+            # Keep a square mosaic: equal column/row stretch so tiles share space evenly.
+            rows = max((len(labels) + columns - 1) // columns, 1) if labels else 1
             for index, label in enumerate(labels):
                 tile = self._feeds[label]
                 tile.setParent(self._grid_host)
-                self._grid.addWidget(tile, index // columns, index % columns)
+                row = index // columns
+                col = index % columns
+                self._grid.addWidget(tile, row, col)
             for column in range(max(columns, 1)):
                 self._grid.setColumnStretch(column, 1)
-            rows = max((len(labels) + columns - 1) // columns, 1) if labels else 1
+                self._grid.setColumnMinimumWidth(column, 1)
             for row in range(rows):
                 self._grid.setRowStretch(row, 1)
+                self._grid.setRowMinimumHeight(row, 1)
             return
 
         self._toggle.setText("Mosaic")

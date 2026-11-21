@@ -45,10 +45,12 @@ class FrameCodec:
             return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         return image
 
-    def decode_lidar(self, payload: bytes) -> np.ndarray:
-        if len(payload) != self.LIDAR_BYTES:
-            raise ValueError("lidar payload is not 1680 bytes")
-        points = np.frombuffer(payload, dtype=np.dtype("<f4")).reshape((self.LIDAR_ROWS, 2))
+    def decode_lidar(self, payload: bytes, rows: int | None = None) -> np.ndarray:
+        expected_rows = rows if rows is not None else self.LIDAR_ROWS
+        expected_bytes = expected_rows * 2 * 4
+        if len(payload) != expected_bytes:
+            raise ValueError(f"lidar payload is not {expected_bytes} bytes")
+        points = np.frombuffer(payload, dtype=np.dtype("<f4")).reshape((expected_rows, 2))
         if not points.flags["C_CONTIGUOUS"]:
             points = np.ascontiguousarray(points)
         return points.copy()
@@ -91,13 +93,20 @@ class FrameCodec:
         if len(payload) != stream.byte_count:
             raise ValueError("payload is not one full frame")
         if stream.kind == "lidar":
-            raster = self.raster_lidar(self.decode_lidar(payload))
+            rows = stream.shape[0]
+            raster = self.raster_lidar(self.decode_lidar(payload, rows=rows))
             return PresentedFrame(self.qimage_from_gray(raster))
+        if stream.kind == "scope":
+            blank = np.zeros((160, 320), dtype=np.uint8)
+            return PresentedFrame(
+                self.qimage_from_gray(blank),
+                f"scope · {stream.shape[0] - 1} signals",
+            )
         height, width, channels = stream.shape
         decoded = self.decode_image(payload, height, width, channels)
         if channels == 3:
             return PresentedFrame(self.qimage_from_rgb(decoded))
-        if stream.port == ProbeContract.DEPTH.port:
+        if stream.kind == "depth" or stream.port == ProbeContract.DEPTH.port:
             shaded = self._depth_shade.shade(decoded)
             return PresentedFrame(self.qimage_from_rgb(shaded.image), shaded.detail)
         return PresentedFrame(self.qimage_from_gray(decoded))

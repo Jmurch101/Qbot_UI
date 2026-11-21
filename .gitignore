@@ -7,3 +7,5 @@ build/
 dist/
 *.egg-info/
 demo_shots/
+.DS_Store
+Quanser/

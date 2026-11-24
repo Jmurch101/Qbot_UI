@@ -8,9 +8,32 @@ This repository is separate from the Quanser lab tree. It does not import `pal` 
 
 Repository: https://github.com/telepath01/Qbot_UI.git
 
+## Pull / update
+
+Branch with the current Init + Platform UI and QBot presets:
+
+```text
+git fetch jmurch
+git checkout feature/ui-revamp
+git pull jmurch feature/ui-revamp
+```
+
+(If your remote is only `origin`, use that name instead of `jmurch`.)
+
 ## Run
 
-Use Python 3.11 through 3.14. On this PC, run the viewer from the conda environment `quanser_env`. PySide6, OpenCV, and NumPy are already installed there. From this directory:
+Use Python 3.11 through 3.14.
+
+**Laptop / Mac (venv):**
+
+```text
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+python -m qbotui
+```
+
+**Lab Windows PC (`quanser_env`):**
 
 ```text
 conda activate quanser_env
@@ -21,12 +44,12 @@ Activating `quanser_env` sets that environment's own `PYTHONPATH` to the lab lib
 
 Do not run the lab `observer.py` at the same time. It binds these same ports.
 
-1. Confirm the one IPv4 on the robot subnet. The window shows that address as `ipHost`. Listeners stay down until you confirm it.
-2. Press **Start listeners**. The four ports bind on that address only.
-3. On the robot, in `/home/nvidia/Desktop`, run `python3 quick_start_qbot_platform.py` only after the listeners are up.
-4. On the robot, `ipHost` must be the address shown here. `ipDriver` stays `localhost`.
+1. Pick a **QBot** (1 / 2 / 3). That fills the SSH host (`192.168.2.145` / `.25` / `.128`).
+2. Confirm the one PC IPv4 on the robot subnet (`Quanser_UVS`). That address is `ipHost`.
+3. Press **VERIFY SSH CONNECTION**, then **START**. Listeners bind on `ipHost` only; the app SSHs to the QBot and starts the selected task script.
+4. Startup runs `/home/nvidia/Desktop/quick_start_qbot_platform.py`. Other labs use `/home/nvidia/Documents/Quanser/...`. On the robot, `ipDriver` stays `localhost`.
 
-Do not start `quick_start_qbot_platform.py` on the Windows PC. After the robot script has connected, it does not dial the PC again until that script is started over.
+Do not start `quick_start_qbot_platform.py` on the Windows/Mac PC. After the robot script has connected, it does not dial the PC again until that script is started over.
 
 Each status row shows listening, connected, disconnected, or bind failure, plus bytes and frames received. The depth title shows the raw 8-bit range. The picture is that received buffer, stretched so the shapes are visible.
 

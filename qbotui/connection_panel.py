@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from qbotui.address_chooser import AddressChooser
 from qbotui.responsive import stack_controls
+from qbotui.robots import RobotCatalog, RobotProfile
 from qbotui.ssh_launcher import SshTarget
 from qbotui.tasks import TaskCatalog, TaskProfile
 
@@ -107,7 +108,18 @@ class ConnectionPanel(QWidget):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
 
-        select_label = QLabel("Select Device")
+        robot_label = QLabel("QBot")
+        robot_label.setObjectName("mutedLabel")
+        self._robot = QComboBox()
+        self._robot.setObjectName("robotCombo")
+        self._robot.addItem("Select a QBot…", None)
+        for robot in RobotCatalog.ALL:
+            self._robot.addItem(robot.label, robot.key)
+        self._robot.currentIndexChanged.connect(self._on_robot_changed)
+        device_layout.addWidget(robot_label)
+        device_layout.addWidget(self._robot)
+
+        select_label = QLabel("PC ipHost (this machine)")
         select_label.setObjectName("mutedLabel")
         self._addresses = AddressChooser()
         self._addresses.setObjectName("addressList")
@@ -274,6 +286,12 @@ class ConnectionPanel(QWidget):
             return TaskCatalog.default()
         return TaskCatalog.by_key(key)
 
+    def current_robot(self) -> RobotProfile | None:
+        key = self._robot.currentData()
+        if not isinstance(key, str):
+            return None
+        return RobotCatalog.by_key(key)
+
     def ssh_target(self) -> SshTarget:
         return SshTarget(
             host=self._ssh_host.text().strip(),
@@ -286,6 +304,7 @@ class ConnectionPanel(QWidget):
         self._execute.setEnabled(enabled)
 
     def set_ssh_enabled(self, enabled: bool) -> None:
+        self._robot.setEnabled(enabled)
         self._ssh_host.setEnabled(enabled)
         self._ssh_user.setEnabled(enabled)
         self._ssh_password.setEnabled(enabled)
@@ -330,11 +349,13 @@ class ConnectionPanel(QWidget):
             self._set_panel_state("diagnostics", False)
         self.style().unpolish(self._verified_badge)
         self.style().polish(self._verified_badge)
-        device = device_name if device_name else "Device 01"
+        robot = self.current_robot()
+        device = robot.name if robot else (device_name if device_name else "Device 01")
+        robot_ip = robot.host if robot else "—"
         if address:
-            self._device.setText(f"{device} · Online\nIP: {address}")
+            self._device.setText(f"{device} · Online\nQBot IP: {robot_ip}\nipHost: {address}")
         else:
-            self._device.setText(f"{device} · Offline\nIP: Not connected")
+            self._device.setText(f"{device} · Offline\nQBot IP: {robot_ip}")
 
     def set_session_enabled(self, enabled: bool) -> None:
         if not self._listening:
@@ -370,6 +391,21 @@ class ConnectionPanel(QWidget):
         mark.setObjectName("checklistMarkDone" if done else "checklistMark")
         self.style().unpolish(mark)
         self.style().polish(mark)
+
+    def _on_robot_changed(self, _index: int) -> None:
+        robot = self.current_robot()
+        if robot is None:
+            return
+        self._ssh_host.setText(robot.host)
+        # Refresh device line with the selected QBot name/IP.
+        confirmed = None
+        text = self._ip_host.text()
+        marker = "Confirmed ipHost · "
+        if text.startswith(marker):
+            value = text[len(marker) :].strip()
+            if value and value != "Not confirmed":
+                confirmed = value
+        self.set_confirmed(robot.name, confirmed)
 
     def _emit_task(self, _index: int) -> None:
         task = self.current_task()

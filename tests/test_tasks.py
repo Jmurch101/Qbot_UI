@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from qbotui.tasks import QUANSER_REMOTE_ROOT, TaskCatalog
+from qbotui.tasks import DESKTOP_REMOTE_ROOT, QUANSER_REMOTE_ROOT, TaskCatalog
 
 
 class TaskCatalogTest(unittest.TestCase):
@@ -48,7 +48,8 @@ class TaskCatalogTest(unittest.TestCase):
         self.assertIn("play.py", command)
         self.assertIn("python3", command)
         startup = TaskCatalog.STARTUP
-        self.assertEqual(startup.remote_dir, QUANSER_REMOTE_ROOT)
+        self.assertEqual(startup.remote_dir, DESKTOP_REMOTE_ROOT)
+        self.assertIn("/home/nvidia/Desktop", startup.remote_command)
         self.assertIn("quick_start_qbot_platform.py", startup.remote_command)
 
     def test_local_quanser_scripts_exist(self) -> None:

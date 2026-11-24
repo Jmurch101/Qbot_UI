@@ -61,8 +61,18 @@ class OffscreenWindowTest(unittest.TestCase):
             self.assertIsNotNone(task_combo)
             assert task_combo is not None
             self.assertEqual(task_combo.count(), len(TaskCatalog.ALL))
+            robot_combo = window.findChild(QComboBox, "robotCombo")
+            self.assertIsNotNone(robot_combo)
+            assert robot_combo is not None
+            from qbotui.robots import RobotCatalog
+
+            self.assertEqual(robot_combo.count(), len(RobotCatalog.ALL) + 1)
             ssh_host = window.findChild(QLineEdit, "sshHostEdit")
             self.assertIsNotNone(ssh_host)
+            assert ssh_host is not None
+            robot_combo.setCurrentIndex(1)
+            app.processEvents()
+            self.assertEqual(ssh_host.text(), RobotCatalog.ALL[0].host)
             start = window.findChild(QPushButton, "startListenersButton")
             self.assertIsNotNone(start)
             assert start is not None

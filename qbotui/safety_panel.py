@@ -20,7 +20,7 @@ class SafetyPanel(QWidget):
         "This viewer is running and all four ports are listening on the one robot-subnet IPv4 shown for ipHost, and on no other address.",
         "The lab observer.py is not also running on this PC.",
         "ipHost in the robot copy is that same address. On the robot, ipDriver stays localhost.",
-        "The robot script is started on the robot only after the viewer is listening, from /home/nvidia/Desktop/Quanser (lab folder), with python3 <startup_script>.",
+        "The robot script is started on the robot only after the viewer is listening (Startup: /home/nvidia/Desktop; other labs: /home/nvidia/Documents/Quanser/...).",
         "quick_start_qbot_platform.py is not started on the Windows PC.",
         "A person is at the F710. Right bumper, or Ctrl+C in the robot script's terminal, is how that script leaves its loop. This window does not do that job.",
         "The script's own limit is 90 seconds.",

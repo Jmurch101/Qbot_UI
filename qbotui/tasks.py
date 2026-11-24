@@ -7,8 +7,11 @@ from dataclasses import dataclass
 from qbotui.contract import ProbeStream
 from qbotui.observers import ObserverCatalog, ObserverProfile
 
-# Root of the Quanser tree on each QBot (Desktop/Quanser).
-QUANSER_REMOTE_ROOT = "/home/nvidia/Desktop/Quanser"
+# Measured on qbp-66042:
+# - quick_start lives flat on Desktop
+# - full Quanser tree is under Documents (not Desktop); qbp_files/Quanser is a smaller package
+DESKTOP_REMOTE_ROOT = "/home/nvidia/Desktop"
+QUANSER_REMOTE_ROOT = "/home/nvidia/Documents/Quanser"
 
 
 @dataclass(frozen=True)
@@ -59,6 +62,7 @@ class TaskCatalog:
         observer=ObserverCatalog.FULL,
         startup_script="quick_start_qbot_platform.py",
         resource_path=".",
+        remote_root=DESKTOP_REMOTE_ROOT,
     )
     PLAY = TaskProfile(
         key="play",

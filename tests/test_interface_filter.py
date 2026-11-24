@@ -1,13 +1,24 @@
-"""Address filtering without calling Windows."""
+"""Address filtering and local interface enumeration."""
 
 from __future__ import annotations
 
+import sys
 import unittest
 
 from qbotui.interface_directory import InterfaceDirectory
 
 
 class InterfaceFilterTest(unittest.TestCase):
+    def test_list_addresses_finds_non_loopback_on_posix(self) -> None:
+        if sys.platform == "win32":
+            self.skipTest("posix enumeration path")
+        rows = InterfaceDirectory().list_addresses()
+        self.assertGreater(len(rows), 0, msg="expected at least one laptop IPv4")
+        for name, ipv4 in rows:
+            self.assertFalse(ipv4.startswith("127."))
+            self.assertFalse(ipv4.startswith("169.254."))
+            self.assertTrue(name)
+
     def test_drops_loopback_apipa_and_down_adapters(self) -> None:
         directory = InterfaceDirectory()
         rows = (

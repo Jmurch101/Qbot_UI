@@ -24,6 +24,26 @@ class SshLaunchResult:
     detail: str
 
 
+def _friendly_ssh_error(host: str, exc: Exception) -> str:
+    text = str(exc).lower()
+    if "no route" in text or "network is unreachable" in text:
+        return (
+            f"SSH to {host} failed: no route to the QBot. "
+            "Rejoin Quanser_UVS Wi‑Fi (en0), confirm ping works, then retry."
+        )
+    if "timed out" in text or "timeout" in text:
+        return (
+            f"SSH to {host} failed: timed out. "
+            "QBot may be off, on another IP, or Wi‑Fi client isolation is blocking you."
+        )
+    if "authentication" in text or "auth fail" in text or "permission denied" in text:
+        return (
+            f"SSH to {host} failed: login rejected. "
+            "Enter the nvidia password in the SSH password field (or set up a key)."
+        )
+    return f"SSH to {host} failed: {exc}"
+
+
 def launch_remote_script(target: SshTarget, remote_command: str, script_name: str) -> SshLaunchResult:
     """Open an SSH session and start the task script on the device."""
     host = target.host.strip()
@@ -60,7 +80,7 @@ def launch_remote_script(target: SshTarget, remote_command: str, script_name: st
     except SshLaunchError:
         raise
     except Exception as exc:
-        raise SshLaunchError(f"SSH to {host} failed: {exc}") from exc
+        raise SshLaunchError(_friendly_ssh_error(host, exc)) from exc
     finally:
         client.close()
 

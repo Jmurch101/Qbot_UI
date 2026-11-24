@@ -54,9 +54,11 @@ class OffscreenWindowTest(unittest.TestCase):
             host = window.findChild(QLabel, "ipHostLabel")
             self.assertIsNotNone(host)
             assert host is not None
-            self.assertIn("ipHost", host.text())
+            self.assertIn("ipHost", host.text().lower())
             device = window.findChild(QLabel, "deviceAddressLabel")
             self.assertIsNotNone(device)
+            note = window.findChild(QLabel, "initStatusNote")
+            self.assertIsNotNone(note)
             task_combo = window.findChild(QComboBox, "taskCombo")
             self.assertIsNotNone(task_combo)
             assert task_combo is not None
@@ -80,7 +82,15 @@ class OffscreenWindowTest(unittest.TestCase):
             open_platform = window.findChild(QPushButton, "openPlatformButton")
             self.assertIsNotNone(open_platform)
             assert open_platform is not None
-            self.assertIn("OPEN QBOT PLATFORM", open_platform.text())
+            self.assertIn("platform", open_platform.text().lower())
+            confirm = window.findChild(QPushButton, "verifySshButton")
+            self.assertIsNotNone(confirm)
+            assert confirm is not None
+            self.assertIn("laptop", confirm.text().lower())
+            confirm.click()
+            app.processEvents()
+            assert note is not None
+            self.assertTrue(len(note.text()) > 10)
             emergency = window.findChild(QPushButton, "emergencyDisconnectButton")
             self.assertIsNotNone(emergency)
             open_platform.click()

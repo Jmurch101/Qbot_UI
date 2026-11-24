@@ -46,16 +46,34 @@ QFrame#initHero {{
 }}
 
 QLabel#heroTitle {{
-    font-size: 36px;
+    font-size: 22px;
     font-weight: 800;
-    letter-spacing: 2px;
+    letter-spacing: 1.5px;
     color: {WHITE};
 }}
 
 QLabel#heroSubtitle {{
     font-size: 12px;
-    letter-spacing: 2px;
+    letter-spacing: 0.4px;
     color: {CYAN};
+}}
+
+QLabel#initStatusNote {{
+    background-color: #061428;
+    border: 1px solid {BORDER_SOFT};
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: {CYAN};
+    font-size: 13px;
+}}
+
+QScrollArea#initScroll {{
+    background-color: transparent;
+    border: none;
+}}
+
+QScrollArea#initScroll > QWidget > QWidget {{
+    background-color: transparent;
 }}
 
 QLabel#initPill {{

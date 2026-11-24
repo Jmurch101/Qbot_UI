@@ -181,47 +181,61 @@ class QbotMainWindow(QMainWindow):
         self._viewer.stop()
         event.accept()
 
+    def _show_note(self, message: str) -> None:
+        """Show feedback on Init (always) and Platform console."""
+        self._connection.show_note(message)
+        self._status.show_note(message)
+
     def _reload_addresses(self) -> None:
         try:
             rows = self._directory.list_addresses()
         except OSError as exc:
             self._address_list.replace_rows([])
-            self._status.show_note(f"Address enumeration failed: {exc}")
+            self._show_note(f"Address enumeration failed: {exc}")
             return
         self._address_list.replace_rows(rows)
         if not rows:
-            self._status.show_note("No eligible IPv4 address was enumerated.")
+            self._show_note("No eligible IPv4 address was enumerated.")
+        else:
+            self._show_note(
+                f"Found {len(rows)} laptop address(es). Pick your Quanser_UVS 192.168.2.x IP."
+            )
 
     def _confirm_address(self) -> None:
         if self._viewer.listeners_active:
-            self._status.show_note("Stop listeners before confirming a new address.")
+            self._show_note("Stop listeners before confirming a new laptop IP.")
+            return
+        if not self._connection.ssh_target().host:
+            self._show_note("Select a QBot first (step 1), then confirm the laptop IP.")
             return
         chosen = self._address_list.chosen_row()
         if chosen is None:
-            self._status.show_note("Select one PC IPv4, then verify SSH connection.")
+            self._show_note(
+                "Select this laptop’s 192.168.2.x address in step 2, then press Confirm laptop IP."
+            )
             return
         device_name, address = chosen
         try:
             confirmed = self._viewer.confirm_address(address)
         except BindRejected as exc:
-            self._status.show_note(str(exc))
+            self._show_note(str(exc))
             return
         self._device_name = device_name
-        ssh = self._connection.ssh_target()
-        if not ssh.host:
-            # Prefer using the confirmed PC address as a starting SSH host hint.
-            pass
-        self._connection.set_confirmed(device_name, confirmed)
-        self._status.show_note(f"Verified ipHost {confirmed}")
+        robot = self._connection.current_robot()
+        name = robot.name if robot else device_name
+        self._connection.set_confirmed(name, confirmed)
+        self._show_note(
+            f"Laptop IP confirmed as ipHost {confirmed}. Press START to listen and run the script on the QBot."
+        )
         self._sync_controls()
 
     def _execute_task(self) -> None:
         task = self._connection.current_task()
         if self._viewer.listeners_active:
-            self._status.show_note("Disconnect before switching tasks.")
+            self._show_note("Disconnect before switching tasks.")
             return
         self._apply_task(task)
-        self._status.show_note(f"Task ready: {task.name} · {task.startup_script}")
+        self._show_note(f"Task ready: {task.name} · {task.startup_script}")
 
     def _on_task_changed(self, key: str) -> None:
         if self._viewer.listeners_active:
@@ -238,23 +252,23 @@ class QbotMainWindow(QMainWindow):
         self._workspace.apply_observer(task.observer)
         listen_labels = [stream.label for stream in task.streams()]
         self._platform.set_labels(listen_labels or list(task.stream_labels))
-        self._status.show_note(f"{task.name} · {task.startup_script}")
+        self._show_note(f"{task.name} · {task.startup_script}")
         self._sync_controls()
 
     def _connect_session(self) -> None:
         if self._ssh_worker is not None and self._ssh_worker.isRunning():
-            self._status.show_note("SSH start is already in progress.")
+            self._show_note("SSH start is already in progress.")
+            return
+        ssh_target = self._connection.ssh_target()
+        if not ssh_target.host:
+            self._show_note("Select a QBot in step 1 (or type the robot IP).")
             return
         if self._viewer.confirmed_address is None:
             self._confirm_address()
             if self._viewer.confirmed_address is None:
                 return
-        ssh_target = self._connection.ssh_target()
-        if not ssh_target.host:
-            self._status.show_note("Enter the SSH host for the robot device.")
-            return
         if not ssh_target.username:
-            self._status.show_note("Enter the SSH username.")
+            self._show_note("Enter the SSH username (usually nvidia).")
             return
 
         task = self._connection.current_task()
@@ -263,12 +277,15 @@ class QbotMainWindow(QMainWindow):
             self._viewer.set_streams(task.streams())
             self._viewer.start()
         except BindRejected as exc:
-            self._status.show_note(str(exc))
+            self._show_note(str(exc))
             self._sync_controls()
             return
 
-        self._connection.set_confirmed(self._device_name, self._viewer.confirmed_address)
-        self._status.show_note(
+        robot = self._connection.current_robot()
+        name = robot.name if robot else self._device_name
+        self._connection.set_confirmed(name, self._viewer.confirmed_address)
+        self._show_note(
+            f"Listeners up on {self._viewer.confirmed_address}. "
             f"Starting {task.startup_script} on {ssh_target.host}…"
         )
         self._sync_controls()
@@ -285,16 +302,17 @@ class QbotMainWindow(QMainWindow):
     def _disconnect_session(self) -> None:
         self._cancel_ssh_worker()
         self._viewer.stop()
-        self._status.show_note("Emergency disconnect · PC listeners stopped.")
+        self._show_note("Disconnected · PC listeners stopped.")
         self._sync_controls()
 
     @Slot(str)
     def _on_ssh_succeeded(self, detail: str) -> None:
-        self._status.show_note(detail)
+        self._show_note(detail)
 
     @Slot(str)
     def _on_ssh_failed(self, message: str) -> None:
-        self._status.show_note(message)
+        self._show_note(message)
+        self._show_screen(0)
 
     @Slot()
     def _on_ssh_finished(self) -> None:

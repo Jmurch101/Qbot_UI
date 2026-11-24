@@ -1,4 +1,4 @@
-"""Initialization screen: device selection, system panels, START / OPEN PLATFORM."""
+"""Initialization screen: pick QBot, pick laptop IP, start session."""
 
 from __future__ import annotations
 
@@ -11,13 +11,13 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
 from qbotui.address_chooser import AddressChooser
-from qbotui.responsive import stack_controls
 from qbotui.robots import RobotCatalog, RobotProfile
 from qbotui.ssh_launcher import SshTarget
 from qbotui.tasks import TaskCatalog, TaskProfile
@@ -27,31 +27,23 @@ def _card(title: str, *, object_name: str = "card") -> tuple[QFrame, QVBoxLayout
     frame = QFrame()
     frame.setObjectName(object_name)
     layout = QVBoxLayout(frame)
-    layout.setContentsMargins(18, 16, 18, 16)
-    layout.setSpacing(12)
+    layout.setContentsMargins(20, 18, 20, 18)
+    layout.setSpacing(10)
     heading = QLabel(title)
     heading.setObjectName("sectionTitle")
     layout.addWidget(heading)
     return frame, layout
 
 
-def _checklist_row(text: str) -> tuple[QWidget, QLabel]:
-    row = QWidget()
-    layout = QHBoxLayout(row)
-    layout.setContentsMargins(0, 4, 0, 4)
-    layout.setSpacing(10)
-    mark = QLabel("○")
-    mark.setObjectName("checklistMark")
-    mark.setFixedWidth(22)
+def _field_label(text: str) -> QLabel:
     label = QLabel(text)
-    label.setObjectName("checklistLabel")
-    layout.addWidget(mark, 0, Qt.AlignmentFlag.AlignTop)
-    layout.addWidget(label, 1)
-    return row, mark
+    label.setObjectName("mutedLabel")
+    label.setWordWrap(True)
+    return label
 
 
 class ConnectionPanel(QWidget):
-    """Init / Operations screen matching the device-selection mock."""
+    """Init screen: two IPs (robot + laptop), one task, clear actions."""
 
     refresh_requested = Signal()
     confirm_requested = Signal()
@@ -68,59 +60,72 @@ class ConnectionPanel(QWidget):
         self._verified = False
         self._controls_stacked = False
 
-        # --- Hero ---
+        # Compact header (not a giant hero — leaves room for the form).
         self.hero = QFrame()
         self.hero.setObjectName("initHero")
-        self.hero.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.hero.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         hero_layout = QVBoxLayout(self.hero)
-        hero_layout.setContentsMargins(24, 28, 24, 24)
-        hero_layout.setSpacing(8)
-        hero_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
+        hero_layout.setContentsMargins(20, 14, 20, 14)
+        hero_layout.setSpacing(4)
         app_title = QLabel("QBOT PLATFORM")
         app_title.setObjectName("heroTitle")
-        app_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        app_sub = QLabel("ROBOTICS CONTROL & MANAGEMENT SYSTEM")
+        app_sub = QLabel("Connect a QBot, then start its lab script from this PC")
         app_sub.setObjectName("heroSubtitle")
-        app_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._init_pill = QLabel("INITIALIZATION")
-        self._init_pill.setObjectName("initPill")
-        self._init_pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._init_pill.setFixedWidth(160)
-
+        app_sub.setWordWrap(True)
         hero_layout.addWidget(app_title)
         hero_layout.addWidget(app_sub)
-        pill_row = QHBoxLayout()
-        pill_row.addStretch(1)
-        pill_row.addWidget(self._init_pill)
-        pill_row.addStretch(1)
-        hero_layout.addSpacing(8)
-        hero_layout.addLayout(pill_row)
 
-        # Keep a compact header handle for main_window title chrome on Platform.
+        # Kept for older layout / chrome hooks.
         self.header = QWidget()
         self.header.setVisible(False)
         QVBoxLayout(self.header).setContentsMargins(0, 0, 0, 0)
 
-        # --- Device selection ---
-        self.device_card, device_layout = _card("⚙  DEVICE SELECTION")
+        self.device_card, form = _card("CONNECT")
         self.device_card.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
         )
+        self.network_card = self.device_card
+        self.task_card = self.device_card
+        self.devices_card = self.device_card
 
-        robot_label = QLabel("QBot")
-        robot_label.setObjectName("mutedLabel")
+        # --- Step 1: robot ---
+        form.addWidget(_field_label("1. QBot (robot) — pick the robot; its IP fills in below"))
         self._robot = QComboBox()
         self._robot.setObjectName("robotCombo")
         self._robot.addItem("Select a QBot…", None)
         for robot in RobotCatalog.ALL:
             self._robot.addItem(robot.label, robot.key)
         self._robot.currentIndexChanged.connect(self._on_robot_changed)
-        device_layout.addWidget(robot_label)
-        device_layout.addWidget(self._robot)
+        form.addWidget(self._robot)
 
-        select_label = QLabel("PC ipHost (this machine)")
-        select_label.setObjectName("mutedLabel")
+        form.addWidget(_field_label("Robot IP (SSH host) — where the app logs in"))
+        self._ssh_host = QLineEdit()
+        self._ssh_host.setObjectName("sshHostEdit")
+        self._ssh_host.setPlaceholderText("Choose a QBot above, or type an IP")
+        self._ssh_host.setClearButtonEnabled(True)
+        form.addWidget(self._ssh_host)
+
+        ssh_row = QHBoxLayout()
+        ssh_row.setSpacing(8)
+        self._ssh_user = QLineEdit("nvidia")
+        self._ssh_user.setObjectName("sshUserEdit")
+        self._ssh_user.setPlaceholderText("SSH username")
+        self._ssh_password = QLineEdit()
+        self._ssh_password.setObjectName("sshPasswordEdit")
+        self._ssh_password.setEchoMode(QLineEdit.EchoMode.Password)
+        self._ssh_password.setPlaceholderText("SSH password (if needed)")
+        ssh_row.addWidget(self._ssh_user, 1)
+        ssh_row.addWidget(self._ssh_password, 1)
+        form.addLayout(ssh_row)
+
+        # --- Step 2: laptop ---
+        form.addSpacing(6)
+        form.addWidget(
+            _field_label(
+                "2. This laptop’s IP on Quanser_UVS — the address the robot dials (ipHost). "
+                "Use your 192.168.2.x Wi‑Fi address, not Ethernet / Cursor."
+            )
+        )
         self._addresses = AddressChooser()
         self._addresses.setObjectName("addressList")
         self._refresh = QPushButton("Refresh")
@@ -130,116 +135,86 @@ class ConnectionPanel(QWidget):
         address_row.setSpacing(8)
         address_row.addWidget(self._addresses, 1)
         address_row.addWidget(self._refresh)
-        device_layout.addWidget(select_label)
-        device_layout.addLayout(address_row)
+        form.addLayout(address_row)
 
-        self._ssh_host = QLineEdit()
-        self._ssh_host.setObjectName("sshHostEdit")
-        self._ssh_host.setPlaceholderText("Robot SSH host / IP")
-        self._ssh_user = QLineEdit("nvidia")
-        self._ssh_user.setObjectName("sshUserEdit")
-        self._ssh_user.setPlaceholderText("SSH username")
-        self._ssh_password = QLineEdit()
-        self._ssh_password.setObjectName("sshPasswordEdit")
-        self._ssh_password.setEchoMode(QLineEdit.EchoMode.Password)
-        self._ssh_password.setPlaceholderText("SSH password (optional)")
-        device_layout.addWidget(self._ssh_host)
-        device_layout.addWidget(self._ssh_user)
-        device_layout.addWidget(self._ssh_password)
+        self._confirm = QPushButton("Confirm laptop IP")
+        self._confirm.setObjectName("verifySshButton")
+        self._confirm.setMinimumHeight(40)
+        self._confirm.clicked.connect(self.confirm_requested.emit)
+        form.addWidget(self._confirm)
 
-        task_label = QLabel("Task")
-        task_label.setObjectName("mutedLabel")
+        self._ip_host = QLabel("Laptop ipHost · not confirmed yet")
+        self._ip_host.setObjectName("ipHostLabel")
+        self._ip_host.setWordWrap(True)
+        self._ip_host.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        form.addWidget(self._ip_host)
+
+        # --- Step 3: task ---
+        form.addSpacing(6)
+        form.addWidget(_field_label("3. Lab task — script the QBot will run after START"))
         self._task = QComboBox()
         self._task.setObjectName("taskCombo")
         for task in TaskCatalog.ALL:
             self._task.addItem(
-                f"{task.name}  ·  {task.window_count} windows  ·  {task.startup_script}",
+                f"{task.name}  ·  {task.startup_script}",
                 task.key,
             )
         self._task.currentIndexChanged.connect(self._emit_task)
+        form.addWidget(self._task)
+
+        # Hidden APPLY control — task combo already applies; keep for API/tests.
         self._execute = QPushButton("APPLY TASK")
         self._execute.setObjectName("executeTaskButton")
+        self._execute.setVisible(False)
         self._execute.clicked.connect(self.execute_requested.emit)
-        device_layout.addWidget(task_label)
-        device_layout.addWidget(self._task)
-        device_layout.addWidget(self._execute)
+        form.addWidget(self._execute)
 
-        auth_row = QHBoxLayout()
-        auth_caption = QLabel("SSH Authentication")
-        auth_caption.setObjectName("mutedLabel")
-        self._ssh_key_badge = QLabel("SSH KEY")
-        self._ssh_key_badge.setObjectName("sshKeyBadge")
-        auth_row.addWidget(auth_caption, 1)
-        auth_row.addWidget(self._ssh_key_badge)
-        device_layout.addLayout(auth_row)
-
-        verify_row = QHBoxLayout()
-        conn_caption = QLabel("Connection status")
-        conn_caption.setObjectName("mutedLabel")
-        self._verified_badge = QLabel("UNVERIFIED")
+        self._verified_badge = QLabel("LAPTOP IP · NOT CONFIRMED")
         self._verified_badge.setObjectName("unverifiedBadge")
-        verify_row.addWidget(conn_caption, 1)
-        verify_row.addWidget(self._verified_badge)
-        device_layout.addLayout(verify_row)
+        self._verified_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        form.addWidget(self._verified_badge)
 
-        self._ip_host = QLabel("Confirmed ipHost · Not confirmed")
-        self._ip_host.setObjectName("ipHostLabel")
-        self._ip_host.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self._device = QLabel("Device 01 · Offline\nIP: Not connected")
+        self._device = QLabel("No QBot selected")
         self._device.setObjectName("deviceAddressLabel")
         self._device.setWordWrap(True)
         self._device.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        device_layout.addWidget(self._ip_host)
-        device_layout.addWidget(self._device)
+        form.addWidget(self._device)
 
-        self._confirm = QPushButton("▶  VERIFY SSH CONNECTION")
-        self._confirm.setObjectName("verifySshButton")
-        self._confirm.setMinimumHeight(44)
-        self._confirm.clicked.connect(self.confirm_requested.emit)
-        device_layout.addStretch(1)
-        device_layout.addWidget(self._confirm)
-
-        # Compatibility aliases used by older layout code / tests.
-        self.network_card = self.device_card
-        self.task_card = self.device_card
-        self.devices_card = self.device_card
-
-        # --- Initial system panels ---
-        self.system_panels_card, panels_layout = _card("📋  INITIAL SYSTEM PANELS")
-        self.system_panels_card.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        self._status_note = QLabel(
+            "Pick a QBot, confirm this laptop’s 192.168.2.x IP, then press START."
         )
+        self._status_note.setObjectName("initStatusNote")
+        self._status_note.setWordWrap(True)
+        form.addWidget(self._status_note)
+
+        # Compatibility: unused decorative panels removed from layout but hooks kept.
+        self.system_panels_card = QFrame()
+        self.system_panels_card.setVisible(False)
         self._panel_marks: dict[str, QLabel] = {}
-        for key, text in (
-            ("activity", "System Activity"),
-            ("events", "Connection Events"),
-            ("diagnostics", "Device Diagnostics"),
-            ("listeners", "Listener Status"),
-        ):
-            row, mark = _checklist_row(text)
-            self._panel_marks[key] = mark
-            panels_layout.addWidget(row)
-        panels_layout.addStretch(1)
+        self._ssh_key_badge = QLabel("SSH KEY")
+        self._ssh_key_badge.setVisible(False)
 
-        self.mid_row = QWidget()
-        self._mid_layout = QHBoxLayout(self.mid_row)
-        self._mid_layout.setContentsMargins(0, 0, 0, 0)
-        self._mid_layout.setSpacing(14)
-        self._mid_layout.addWidget(self.device_card, 1)
-        self._mid_layout.addWidget(self.system_panels_card, 1)
+        scroll = QScrollArea()
+        scroll.setObjectName("initScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setWidget(self.device_card)
 
-        # --- Footer actions ---
-        self._start = QPushButton("▶  START")
+        self.mid_row = scroll
+        self._mid_layout = QHBoxLayout()  # unused; kept for apply_breakpoint API
+
+        # --- Footer actions (always visible, outside scroll) ---
+        self._start = QPushButton("START — listen + run script on QBot")
         self._start.setObjectName("startListenersButton")
-        self._start.setMinimumHeight(56)
+        self._start.setMinimumHeight(48)
         self._start.clicked.connect(self._on_start_or_disconnect)
 
-        self._open_platform = QPushButton("▦  OPEN QBOT PLATFORM")
+        self._open_platform = QPushButton("Open camera platform")
         self._open_platform.setObjectName("openPlatformButton")
-        self._open_platform.setMinimumHeight(56)
+        self._open_platform.setMinimumHeight(48)
         self._open_platform.clicked.connect(self.open_platform_requested.emit)
 
-        # Hidden disconnect handle for tests / callers that still look it up.
         self._disconnect = QPushButton("EMERGENCY DISCONNECT")
         self._disconnect.setObjectName("emergencyDisconnectButton")
         self._disconnect.setVisible(False)
@@ -248,8 +223,8 @@ class ConnectionPanel(QWidget):
         self.actions_row = QWidget()
         self._actions_layout = QHBoxLayout(self.actions_row)
         self._actions_layout.setContentsMargins(0, 0, 0, 0)
-        self._actions_layout.setSpacing(14)
-        self._actions_layout.addWidget(self._start, 1)
+        self._actions_layout.setSpacing(10)
+        self._actions_layout.addWidget(self._start, 2)
         self._actions_layout.addWidget(self._open_platform, 1)
 
         self.footer = QWidget()
@@ -265,16 +240,11 @@ class ConnectionPanel(QWidget):
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(14)
-        root.addWidget(self.hero, 2)
-        root.addWidget(self.mid_row, 5)
-        root.addWidget(self.actions_row, 1)
+        root.setSpacing(12)
+        root.addWidget(self.hero, 0)
+        root.addWidget(scroll, 1)
+        root.addWidget(self.actions_row, 0)
         root.addWidget(self._disconnect)
-
-        self._set_panel_state("activity", False)
-        self._set_panel_state("events", False)
-        self._set_panel_state("diagnostics", False)
-        self._set_panel_state("listeners", False)
 
     @property
     def address_chooser(self) -> AddressChooser:
@@ -299,6 +269,10 @@ class ConnectionPanel(QWidget):
             password=self._ssh_password.text(),
         )
 
+    def show_note(self, message: str) -> None:
+        """Surface feedback on the Init screen (not only on Platform)."""
+        self._status_note.setText(message)
+
     def set_task_enabled(self, enabled: bool) -> None:
         self._task.setEnabled(enabled)
         self._execute.setEnabled(enabled)
@@ -320,12 +294,12 @@ class ConnectionPanel(QWidget):
             "NETWORK: CONNECTED" if listening else "NETWORK: DISCONNECTED"
         )
         if listening:
-            self._start.setText("■  EMERGENCY DISCONNECT")
+            self._start.setText("STOP listeners (disconnect)")
             self._start.setObjectName("emergencyDisconnectButton")
             self._set_panel_state("listeners", True)
             self._set_panel_state("activity", True)
         else:
-            self._start.setText("▶  START")
+            self._start.setText("START — listen + run script on QBot")
             self._start.setObjectName("startListenersButton")
             self._set_panel_state("listeners", False)
         self.style().unpolish(self._start)
@@ -334,28 +308,30 @@ class ConnectionPanel(QWidget):
 
     def set_confirmed(self, device_name: str | None, address: str | None) -> None:
         if address:
-            self._ip_host.setText(f"Confirmed ipHost · {address}")
+            self._ip_host.setText(f"Laptop ipHost · {address}")
             self._verified = True
-            self._verified_badge.setText("VERIFIED")
+            self._verified_badge.setText("LAPTOP IP · CONFIRMED")
             self._verified_badge.setObjectName("verifiedBadge")
             self._set_panel_state("events", True)
             self._set_panel_state("diagnostics", True)
         else:
-            self._ip_host.setText("Confirmed ipHost · Not confirmed")
+            self._ip_host.setText("Laptop ipHost · not confirmed yet")
             self._verified = False
-            self._verified_badge.setText("UNVERIFIED")
+            self._verified_badge.setText("LAPTOP IP · NOT CONFIRMED")
             self._verified_badge.setObjectName("unverifiedBadge")
             self._set_panel_state("events", False)
             self._set_panel_state("diagnostics", False)
         self.style().unpolish(self._verified_badge)
         self.style().polish(self._verified_badge)
         robot = self.current_robot()
-        device = robot.name if robot else (device_name if device_name else "Device 01")
-        robot_ip = robot.host if robot else "—"
+        device = robot.name if robot else (device_name if device_name else "No QBot selected")
+        robot_ip = self._ssh_host.text().strip() or (robot.host if robot else "—")
         if address:
-            self._device.setText(f"{device} · Online\nQBot IP: {robot_ip}\nipHost: {address}")
+            self._device.setText(
+                f"{device}\nRobot IP: {robot_ip}\nLaptop IP (ipHost): {address}"
+            )
         else:
-            self._device.setText(f"{device} · Offline\nQBot IP: {robot_ip}")
+            self._device.setText(f"{device}\nRobot IP: {robot_ip}\nLaptop IP: not confirmed")
 
     def set_session_enabled(self, enabled: bool) -> None:
         if not self._listening:
@@ -364,18 +340,23 @@ class ConnectionPanel(QWidget):
         self._open_platform.setEnabled(True)
 
     def apply_breakpoint(self, width: int) -> None:
-        """Stack device/panels and footer buttons when the window is narrow."""
-        stacked = stack_controls(width)
+        """Footer stacks on narrow windows; form stays single-column in scroll."""
+        stacked = width < 720
         if stacked == self._controls_stacked:
             return
         self._controls_stacked = stacked
-        direction = (
-            QBoxLayout.Direction.TopToBottom
-            if stacked
-            else QBoxLayout.Direction.LeftToRight
-        )
-        self._mid_layout.setDirection(direction)
-        self._actions_layout.setDirection(direction)
+        # Rebuild action row direction without depending on mid_layout.
+        while self._actions_layout.count():
+            item = self._actions_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+        if stacked:
+            self._actions_layout.setDirection(QBoxLayout.Direction.TopToBottom)
+        else:
+            self._actions_layout.setDirection(QBoxLayout.Direction.LeftToRight)
+        self._actions_layout.addWidget(self._start, 2)
+        self._actions_layout.addWidget(self._open_platform, 1)
 
     def _on_start_or_disconnect(self) -> None:
         if self._listening:
@@ -395,17 +376,20 @@ class ConnectionPanel(QWidget):
     def _on_robot_changed(self, _index: int) -> None:
         robot = self.current_robot()
         if robot is None:
+            self.set_confirmed(None, self._confirmed_address())
             return
         self._ssh_host.setText(robot.host)
-        # Refresh device line with the selected QBot name/IP.
-        confirmed = None
+        self.set_confirmed(robot.name, self._confirmed_address())
+
+    def _confirmed_address(self) -> str | None:
         text = self._ip_host.text()
-        marker = "Confirmed ipHost · "
-        if text.startswith(marker):
-            value = text[len(marker) :].strip()
-            if value and value != "Not confirmed":
-                confirmed = value
-        self.set_confirmed(robot.name, confirmed)
+        marker = "Laptop ipHost · "
+        if not text.startswith(marker):
+            return None
+        value = text[len(marker) :].strip()
+        if not value or value == "not confirmed yet":
+            return None
+        return value
 
     def _emit_task(self, _index: int) -> None:
         task = self.current_task()
